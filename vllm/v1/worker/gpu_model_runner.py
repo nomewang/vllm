@@ -1092,6 +1092,25 @@ class GPUModelRunner(
         for mm_hash in scheduler_output.free_encoder_mm_hashes:
             self.encoder_cache.pop(mm_hash, None)
 
+        if getattr(self, "enable_multi_layer_eagle", False):
+            for req_id, req_index in list(self.input_batch.req_id_to_index.items()):
+                req_state = self.requests.get(req_id)
+                if req_state is None or not hasattr(self.input_batch, "cached_len"):
+                    continue
+                req_state.cached_len = self.input_batch.cached_len[req_index].clone()
+                req_state.cached_token_ids = self.input_batch.cached_token_ids[
+                    req_index
+                ].clone()
+                req_state.cached_hidden_states = (
+                    self.input_batch.cached_hidden_states[req_index].clone()
+                )
+                req_state.cached_slot_mappings = (
+                    self.input_batch.cached_slot_mappings[req_index].clone()
+                )
+                req_state.cached_positions = self.input_batch.cached_positions[
+                    req_index
+                ].clone()
+
         # Remove the unscheduled requests from the persistent batch.
         # NOTE(woosuk): The unscheduled requests are either preempted requests
         # or running requests that are not scheduled in this step. We remove
@@ -1184,6 +1203,12 @@ class GPUModelRunner(
             # Only relevant for models using XD-RoPE (e.g, HunYuan-VL)
             if self.uses_xdrope_dim > 0:
                 self._init_xdrope_positions(req_state)
+
+            if (
+                getattr(self, "enable_multi_layer_eagle", False)
+                and hasattr(self, "_init_multi_layer_eagle_cache")
+            ):
+                self._init_multi_layer_eagle_cache(req_state)
 
             reqs_to_add.append(req_state)
             # Track new requests for ngram_gpu full tensor copy
@@ -1504,6 +1529,12 @@ class GPUModelRunner(
 
         if self.uses_mrope:
             self._init_mrope_positions(req_state)
+
+        if (
+            getattr(self, "enable_multi_layer_eagle", False)
+            and hasattr(self, "_init_multi_layer_eagle_cache")
+        ):
+            self._init_multi_layer_eagle_cache(req_state)
 
         return req_state
 
