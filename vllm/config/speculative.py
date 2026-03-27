@@ -78,6 +78,9 @@ class SpeculativeConfig:
 
     If using `ngram` method, the related configuration `prompt_lookup_max` and
     `prompt_lookup_min` should be considered."""
+    enable_multi_layers_mtp: bool = False
+    """If set to True, the MTP method runs multiple predictor layers in one
+    speculative proposal. Only effective when `method` is set to `mtp`."""
     draft_tensor_parallel_size: int | None = Field(default=None, ge=1)
     """The degree of the tensor parallelism for the draft model. Can only be 1
     or the same as the target model's tensor parallel size."""
@@ -483,7 +486,10 @@ class SpeculativeConfig:
                     MTPModelTypes
                 ):
                     self.method = "mtp"
-                    if self.num_speculative_tokens > 1:
+                    if (
+                        self.enable_multi_layers_mtp is False
+                        and self.num_speculative_tokens > 1
+                    ):
                         logger.warning(
                             "Enabling num_speculative_tokens > 1 will run "
                             "multiple times of forward on same MTP layer"
@@ -538,6 +544,17 @@ class SpeculativeConfig:
                 if n_predict is not None:
                     if self.num_speculative_tokens is None:
                         # Default to max value defined in draft model config.
+                        self.num_speculative_tokens = n_predict
+                    elif (
+                        self.method == "mtp"
+                        and self.enable_multi_layers_mtp
+                        and self.num_speculative_tokens > n_predict
+                    ):
+                        logger.warning_once(
+                            "For multi-layer MTP, num_speculative_tokens is "
+                            "greater than the predictor layer count; "
+                            "adjusting it to n_predict."
+                        )
                         self.num_speculative_tokens = n_predict
                     elif (
                         self.num_speculative_tokens > n_predict
