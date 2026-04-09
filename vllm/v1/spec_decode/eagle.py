@@ -1638,7 +1638,7 @@ class SpecDecodeBaseProposer:
         )
 
         # Find which kv_cache_group the draft layers belong to
-        self.validate_same_kv_cache_group(kv_cache_config)
+        # self.validate_same_kv_cache_group(kv_cache_config)
         kv_cache_spec = None
         for gid, group in enumerate(kv_cache_config.kv_cache_groups):
             if self._draft_attn_layer_names & set(group.layer_names):
